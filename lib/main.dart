@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import './restful_key.dart';
+
 
 void main() {
   runApp(const MyApp());
@@ -24,7 +28,7 @@ class MyApp extends StatelessWidget {
         // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const MyHomePage(title: 'Http example'),
     );
   }
 }
@@ -48,18 +52,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
+  String result = '';
 
   @override
   Widget build(BuildContext context) {
@@ -99,17 +92,32 @@ class _MyHomePageState extends State<MyHomePage> {
               'You have pushed the button this many times:',
             ),
             Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
+              '$result'
             ),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
+        onPressed: () async {
+          getJSONData();
+        },
         tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+        child: const Icon(Icons.file_download),
+      ),
+      // This trailing comma makes auto-formatting nicer for build methods.
     );
+  }
+
+  Future<String> getJSONData() async {
+    var url = 'https://dapi.kakao.com/v3/search/book?target=title&query=doit';
+    var restfulkey = restful_key;
+    var response = await http.get(Uri.parse(url),
+    headers: {"Authorization": "KakaoAK $restfulkey"});
+    print(restfulkey);
+    print(response.body);
+    setState(() {
+      result = response.body;
+    });
+    return 'Successful';
   }
 }
