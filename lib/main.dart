@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import './restful_key.dart';
-
+import 'dart:io';
 
 void main() {
   runApp(const MyApp());
@@ -15,35 +16,17 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Book Search system',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'Http example'),
+      home: const MyHomePage(title: '책 검색서비스'),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
 
   final String title;
 
@@ -52,53 +35,97 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  String result = '';
+  final book_name = TextEditingController();
+  ScrollController? _scrollController;
+  int page = 1;
+  List? result;
+  List? data;
+
+  @override
+  void initState() {
+    super.initState();
+    data = new List.empty(growable: true);
+    _scrollController = new ScrollController();
+
+    _scrollController!.addListener(() {
+      if (_scrollController!.offset >=
+          _scrollController!.position.maxScrollExtent &&
+          !_scrollController!.position.outOfRange) {
+        print('bottom');
+        page++;
+        getJSONData();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$result'
-            ),
-          ],
-        ),
-      ),
+      body: Container(
+          child: Column(
+            children: [
+              TextField(
+                controller: book_name,
+                keyboardType: TextInputType.text,
+                style: TextStyle(color: Colors.black),
+                maxLines: 1,
+                decoration: InputDecoration(hintText: '책 이름을 입력하세요'),
+              ),
+              Expanded(
+                child: data!.length == 0
+                    ? Text(
+                  '데이터가 없습니다.',
+                  style: TextStyle(fontSize: 20),
+                  textAlign: TextAlign.center,
+                )
+                    : ListView.builder(
+                  itemBuilder: (context, index) {
+                    return Card(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: <Widget>[
+                          Image.network(
+                            data![index]['thumbnail'],
+                            height: 100,
+                            width: 100,
+                            fit: BoxFit.contain,
+                          ),
+                          Column(
+                            children: <Widget>[
+                              Container(
+                                width:
+                                MediaQuery
+                                    .of(context)
+                                    .size
+                                    .width - 150,
+                                child: Text(
+                                  data![index]['title'].toString(),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              Text(data![index]['authors'].toString()),
+                              Text(data![index]['sale_price'].toString()),
+                              Text(data![index]['status'].toString()),
+                            ],
+                          )
+                        ],
+                      ),
+                    );
+                  },
+                  itemCount: data!.length,
+                  controller: _scrollController,
+                ),
+              ),
+            ],
+          )),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
+          data = new List.empty(growable: true);
+          page = 1;
+          data!.clear();
           getJSONData();
         },
         tooltip: 'Increment',
@@ -109,15 +136,18 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<String> getJSONData() async {
-    var url = 'https://dapi.kakao.com/v3/search/book?target=title&query=doit';
+    var book_name_val = book_name.value.text.toString();
     var restfulkey = restful_key;
-    var response = await http.get(Uri.parse(url),
-    headers: {"Authorization": "KakaoAK $restfulkey"});
-    print(restfulkey);
-    print(response.body);
+    var url = 'https://dapi.kakao.com/v3/search/book?target=title&page&query=${book_name_val}';
+    var response = await http.get(
+        Uri.parse(url), headers: {"Authorization": "KakaoAK ${restfulkey}"});
+    var response_body = response.body;
+    var dataConvertedToJSON = json.decode(response_body);
+    List result = dataConvertedToJSON['documents'];
+
     setState(() {
-      result = response.body;
+      data!.addAll(result);
     });
-    return 'Successful';
+    return response_body;
   }
 }
